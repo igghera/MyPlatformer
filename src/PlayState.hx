@@ -17,17 +17,19 @@ import org.flixel.FlxPoint;
 import org.flixel.FlxGroup;
 import org.flixel.FlxText;
 import org.flixel.FlxRect;
-//import org.flixel.FlxMouse;
 
 class PlayState extends FlxState
 {
 	private var map:FlxTilemap;
-	private var player:FlxSprite;
+	private var player:Player;
 	private var player_jumping:Bool;
 	private var collectables_layer:FlxGroup;
 	private var txtScore:FlxText;
 	private var enemyGroup:FlxGroup;
 	private var bg:FlxSprite;
+	private var healthBar:FlxSprite;
+	private var bullets_layer:FlxGroup;
+	private var bullet_delay:Int;
 
 	override public function create():Void
 	{
@@ -49,7 +51,7 @@ class PlayState extends FlxState
 
 		//add the player
 
-		player = new FlxSprite();
+		player = new Player();
 		player.loadGraphic("assets/player.png", true, true, 25, 34);
 		add(player);
 
@@ -91,7 +93,22 @@ class PlayState extends FlxState
 		FlxG.camera.follow(player);
 		FlxG.worldBounds = new FlxRect(0, 0, map.width, map.height);
 
-		//setupListeners();
+		//Health bar
+
+		healthBar = new FlxSprite(5, 5);
+		healthBar.makeGraphic(1, 12, 0xffff0000);
+		healthBar.scrollFactor.x = healthBar.scrollFactor.y = 0;
+		healthBar.origin.x = healthBar.origin.y = 0; //Zero out the origin
+		healthBar.scale.x = 48; //Fill up the health bar all the way
+		healthBar.x = 30;
+		add(healthBar);
+
+		//setup bullets layer
+		bullets_layer = new FlxGroup();
+		add(bullets_layer);
+
+		//and bullet delay
+		bullet_delay = 20;
 	}
 
 	override public function destroy():Void
@@ -102,8 +119,14 @@ class PlayState extends FlxState
 	override public function update():Void
 	{
 		super.update();
-		FlxG.collide(map, player);
 
+		//update health bar
+
+		healthBar.scale.x = (player.health / 100) * 48;
+
+		//collisions
+
+		FlxG.collide(map, player);
 		FlxG.collide(map, enemyGroup);
 		FlxG.overlap(player, enemyGroup, playerHitEnemy, null);
 
@@ -138,8 +161,29 @@ class PlayState extends FlxState
 
 		FlxG.overlap(player, collectables_layer, playerHitCollectible);
 
-		// if(FlxMouse.pressed())
-		// 	trace("Pressed");
+		//Bullets
+
+		bullet_delay --;
+
+		if (FlxG.keys.SPACE && bullet_delay < 0)
+		{
+			//fiya!
+
+			//resetdelay
+			bullet_delay = 20;
+
+			var bullet:FlxSprite = new FlxSprite();
+			bullet.loadGraphic("assets/bullet.png", false, true);
+			bullet.x = player.x;
+			bullet.y = player.y;
+			bullet.facing = player.facing;
+			bullet.velocity.x = ((player.facing == FlxObject.LEFT) ? -1 : 1) * 150;
+			bullets_layer.add(bullet);
+		}
+
+		//check for bullet collisions
+		FlxG.overlap(bullets_layer, enemyGroup, bulletHitEnemy);
+		FlxG.collide(bullets_layer, map, bulletHitMap);
 	}
 
 	function playerHitCollectible(playerRef:FlxObject, collectibleRef:FlxObject):Void
@@ -175,8 +219,20 @@ class PlayState extends FlxState
 		enemyGroup.add(enemy);
 	}
 
-	function playerHitEnemy(playerRef:FlxObject, enemyRef:FlxObject):Void {
+	function playerHitEnemy(playerRef:FlxObject, enemyRef:FlxObject):Void
+	{
 		playerRef.flicker();
+		enemyGroup.remove(enemyRef);
+
+		playerRef.health -= 10;
+	}
+
+	function bulletHitMap(bulletRef:FlxObject, mapRef:FlxObject):Void {
+		bullets_layer.remove(bulletRef);
+	}
+
+	function bulletHitEnemy(bulletRef:FlxObject, enemyRef:FlxObject):Void {
+		bullets_layer.remove(bulletRef);
 		enemyGroup.remove(enemyRef);
 	}
 }
